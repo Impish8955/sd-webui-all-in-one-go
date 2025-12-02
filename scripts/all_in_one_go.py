@@ -26,7 +26,7 @@ class Script(scripts.Script):
 
         with gr.Accordion("All in one go Settings", open=True):
             
-            # --- Описание и предупреждение ---
+           
             gr.Markdown(
                 """
                 <div style="padding: 12px; border: 1px solid #bdc3c7; border-radius: 8px; background-color: rgba(128, 128, 128, 0.08); margin-bottom: 15px;">
@@ -50,15 +50,15 @@ class Script(scripts.Script):
                 """
             )
 
-            # Настройка Seed
+            # Setting up the Seed
             use_same_seed = gr.Checkbox(label="Use same Seed for all steps", value=True)
             all_inputs.append(use_same_seed)
 
-            # Скрытый счетчик
+            # Hidden counter
             active_rows_count = gr.Number(value=1, visible=False, precision=0)
             all_inputs.append(active_rows_count)
 
-            # Генерация строк (показываем только первую)
+            # String generation (showing only the first one)
             with gr.Group():
                 for i in range(self.MAX_ROWS):
                     is_visible = (i == 0)
@@ -74,12 +74,12 @@ class Script(scripts.Script):
                     
                     rows_refs.append(row)
 
-                # Кнопки управления
+                # Control buttons
                 with gr.Row():
                     add_btn = gr.Button("➕ Add Step", variant="primary")
                     remove_btn = gr.Button("➖ Remove Last Step", variant="secondary")
 
-            # --- Логика интерфейса ---
+            # --- Interface Logic ---
             
             def update_visibility(count):
                 updates = []
@@ -123,12 +123,12 @@ class Script(scripts.Script):
                 "scheduler": group[2]
             })
 
-        # --- Подготовка Seed ---
+        # --- Seed Preparation ---
         processing.fix_seed(p)
         original_fixed_seed = p.seed
         original_fixed_subseed = p.subseed
         
-        # --- Подготовка начальных настроек ---
+        # --- Preparing the initial settings ---
         initial_checkpoint = sd_models.model_data.get_sd_model().sd_checkpoint_info.title
         initial_sampler = p.sampler_name
         initial_scheduler = getattr(p, 'scheduler', 'Automatic')
@@ -142,7 +142,7 @@ class Script(scripts.Script):
         print(f"\n[All in one go] Steps: {len(steps_settings)}. Same seed: {use_same_seed}")
 
         for idx, step in enumerate(steps_settings):
-            # 1. Настройки наследования
+            # 1. Inheritance Settings
             if step["checkpoint"] != self.PREV_OPTION:
                 current_checkpoint = step["checkpoint"]
             if step["sampler"] != self.PREV_OPTION:
@@ -150,14 +150,14 @@ class Script(scripts.Script):
             if step["scheduler"] != self.PREV_OPTION:
                 current_scheduler = step["scheduler"]
 
-            # 2. Загрузка модели
+            # 2. Loading the model
             info = sd_models.get_closet_checkpoint_match(current_checkpoint)
             if info:
                  if sd_models.model_data.get_sd_model().sd_checkpoint_info.title != info.title:
                     print(f"[All in one go] Loading checkpoint: {info.title}")
                     sd_models.reload_model_weights(None, info)
             
-            # 3. Применение Seed
+            # 3. Application of Seed
             if use_same_seed:
                 p.seed = original_fixed_seed
                 p.subseed = original_fixed_subseed
@@ -166,14 +166,14 @@ class Script(scripts.Script):
                 p.subseed = -1
                 processing.fix_seed(p)
 
-            # 4. Применение настроек
+            # 4. Applying Settings
             p.sampler_name = current_sampler
             if hasattr(p, 'scheduler') and current_scheduler != "Automatic":
                 p.scheduler = current_scheduler
 
             print(f"[All in one go] Step {idx+1}/{num_steps} | Seed: {p.seed} | Model: {current_checkpoint}")
             
-            # 5. Генерация
+            # 5. Generation
             processed = processing.process_images(p)
             
             if combined_processed is None:
