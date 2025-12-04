@@ -1,6 +1,6 @@
 import modules.scripts as scripts
 import gradio as gr
-from modules import processing, sd_models, sd_samplers
+from modules import processing, sd_models, sd_samplers, shared
 import copy
 import random
 
@@ -26,7 +26,7 @@ class Script(scripts.Script):
 
         with gr.Accordion("All in one go Settings", open=True):
             
-           
+            # --- Description and warning ---
             gr.Markdown(
                 """
                 <div style="padding: 12px; border: 1px solid #bdc3c7; border-radius: 8px; background-color: rgba(128, 128, 128, 0.08); margin-bottom: 15px;">
@@ -58,7 +58,7 @@ class Script(scripts.Script):
             active_rows_count = gr.Number(value=1, visible=False, precision=0)
             all_inputs.append(active_rows_count)
 
-            # String generation (showing only the first one)
+            # String generation
             with gr.Group():
                 for i in range(self.MAX_ROWS):
                     is_visible = (i == 0)
@@ -79,8 +79,7 @@ class Script(scripts.Script):
                     add_btn = gr.Button("➕ Add Step", variant="primary")
                     remove_btn = gr.Button("➖ Remove Last Step", variant="secondary")
 
-            # --- Interface Logic ---
-            
+            # --- Logic interfaceа ---
             def update_visibility(count):
                 updates = []
                 for i in range(self.MAX_ROWS):
@@ -92,20 +91,11 @@ class Script(scripts.Script):
                 return [new_count] + update_visibility(new_count)
 
             def remove_step(current_count):
-                new_count = max(current_count - 1, 1) # Минимум 1 строка
+                new_count = max(current_count - 1, 1)
                 return [new_count] + update_visibility(new_count)
 
-            add_btn.click(
-                fn=add_step,
-                inputs=[active_rows_count],
-                outputs=[active_rows_count] + rows_refs
-            )
-
-            remove_btn.click(
-                fn=remove_step,
-                inputs=[active_rows_count],
-                outputs=[active_rows_count] + rows_refs
-            )
+            add_btn.click(fn=add_step, inputs=[active_rows_count], outputs=[active_rows_count] + rows_refs)
+            remove_btn.click(fn=remove_step, inputs=[active_rows_count], outputs=[active_rows_count] + rows_refs)
 
         return all_inputs
 
@@ -129,7 +119,8 @@ class Script(scripts.Script):
         original_fixed_subseed = p.subseed
         
         # --- Preparing the initial settings ---
-        initial_checkpoint = sd_models.model_data.get_sd_model().sd_checkpoint_info.title
+        # We use shared.sd_model to get the current global model.
+        initial_checkpoint = shared.sd_model.sd_checkpoint_info.title
         initial_sampler = p.sampler_name
         initial_scheduler = getattr(p, 'scheduler', 'Automatic')
 
@@ -150,12 +141,21 @@ class Script(scripts.Script):
             if step["scheduler"] != self.PREV_OPTION:
                 current_scheduler = step["scheduler"]
 
-            # 2. Loading the model
+            # 2. Loading the model and FIXED METADATA
             info = sd_models.get_closet_checkpoint_match(current_checkpoint)
             if info:
-                 if sd_models.model_data.get_sd_model().sd_checkpoint_info.title != info.title:
+                # Even if the model is the same, we update p.override_settings so that the metadata is correct.
+                if shared.sd_model.sd_checkpoint_info.title != info.title:
                     print(f"[All in one go] Loading checkpoint: {info.title}")
                     sd_models.reload_model_weights(None, info)
+                                
+                # 1. Binding the p object to the newly loaded model
+                p.sd_model = shared.sd_model
+                # 2. We are forcibly writing the model name to the override settings (override_settings).
+                # This ensures that the infotext (the text under the picture) contains the correct model..
+                if p.override_settings is None:
+                    p.override_settings = {}
+                p.override_settings['sd_model_checkpoint'] = info.title
             
             # 3. Application of Seed
             if use_same_seed:
@@ -166,7 +166,7 @@ class Script(scripts.Script):
                 p.subseed = -1
                 processing.fix_seed(p)
 
-            # 4. Applying Settings
+            # 4. Applying the sampler settings
             p.sampler_name = current_sampler
             if hasattr(p, 'scheduler') and current_scheduler != "Automatic":
                 p.scheduler = current_scheduler
